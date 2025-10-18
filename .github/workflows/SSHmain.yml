@@ -10,40 +10,33 @@ jobs:
         run: |
           sudo sed -i 's/PasswordAuthentication no/PasswordAuthentication yes/' /etc/ssh/sshd_config
           sudo sed -i 's/PermitRootLogin prohibit-password/PermitRootLogin yes/' /etc/ssh/sshd_config
-          
           sudo systemctl restart ssh
-          
           sudo ufw allow 22/tcp
           sudo ufw reload
 
       - name: Set Random Root Password
         run: |
           RANDOM_PASSWORD=$(openssl rand -base64 12 | sed 's/[\/+=]/X/g' | head -c 16)
-          
           echo "root:$RANDOM_PASSWORD" | sudo chpasswd
-          
           echo "SSH_PASSWORD=$RANDOM_PASSWORD" >> $GITHUB_ENV
           echo "SSH_USER=root" >> $GITHUB_ENV
 
       - name: Install Tailscale
         run: |
           curl -fsSL https://tailscale.com/install.sh | sh
-          
           sudo apt clean
 
       - name: Connect to Tailscale
         env:
           TAILSCALE_AUTH_KEY: ${{ secrets.TAILSCALE_AUTH_KEY }}
         run: |
-          sudo tailscale up --authkey $TAILSCALE_AUTH_KEY --hostname "github-ssh-${{ github.run_id }}"
-          
+          sudo tailscale up --authkey $TAILSCALE_AUTH_KEY --hostname github-ssh-${{ github.run_id }}
           TAILSCALE_IP=$(sudo tailscale ip -4)
           echo "TAILSCALE_IP=$TAILSCALE_IP" >> $GITHUB_ENV
 
       - name: Verify SSH Connection
         run: |
           echo "Tailscale Private IP: ${{ env.TAILSCALE_IP }}"
-          
           if ! nc -z ${{ env.TAILSCALE_IP }} 22; then
             echo "Error: SSH Port 22 is not reachable!"
             exit 1
@@ -60,7 +53,6 @@ jobs:
           echo "Password: ${{ env.SSH_PASSWORD }}"
           echo "Connect Command: ssh ${{ env.SSH_USER }}@${{ env.TAILSCALE_IP }}"
           echo "======================================"
-          
           while true; do
             echo "SSH Service is running... $(date)"
             sleep 300
