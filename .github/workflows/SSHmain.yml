@@ -6,6 +6,13 @@ jobs:
     timeout-minutes: 3600
 
     steps:
+      - name: Check Port 22 Occupation
+        run: |
+          if sudo lsof -i:22; then
+            echo "Error: Port 22 is occupied by other processes!"
+            exit 1
+          fi
+
       - name: Configure SSH Service
         run: |
           sudo sed -i 's/PasswordAuthentication no/PasswordAuthentication yes/' /etc/ssh/sshd_config
@@ -13,6 +20,9 @@ jobs:
           sudo systemctl restart ssh
           sudo ufw allow 22/tcp
           sudo ufw reload
+          grep -E "PasswordAuthentication|PermitRootLogin" /etc/ssh/sshd_config
+          systemctl status ssh
+          ufw status
 
       - name: Set Random Root Password
         run: |
