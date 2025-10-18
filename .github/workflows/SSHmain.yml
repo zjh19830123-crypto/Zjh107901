@@ -8,7 +8,8 @@ jobs:
     steps:
       - name: Check Port 22 Occupation
         run: |
-          if sudo lsof -i:22; then
+          OCCUPIED=$(sudo lsof -i:22 | grep -v "sshd")
+          if [ -n "$OCCUPIED" ]; then
             echo "Error: Port 22 is occupied by other processes!"
             exit 1
           fi
