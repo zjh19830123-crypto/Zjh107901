@@ -30,7 +30,7 @@ jobs:
         env:
           TAILSCALE_AUTH_KEY: ${{ secrets.TAILSCALE_AUTH_KEY }}
         run: |
-          sudo tailscale up --authkey $TAILSCALE_AUTH_KEY --hostname github-ssh-${{ github.run_id }}
+          sudo tailscale up --authkey "$TAILSCALE_AUTH_KEY" --hostname "github-ssh-${{ github.run_id }}"
           TAILSCALE_IP=$(sudo tailscale ip -4)
           echo "TAILSCALE_IP=$TAILSCALE_IP" >> $GITHUB_ENV
 
