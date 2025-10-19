@@ -1,5 +1,8 @@
 name: SSH
-on: workflow_dispatch
+
+on:
+  workflow_dispatch:
+
 jobs:
   secure-ssh:
     runs-on: ubuntu-latest
@@ -8,11 +11,13 @@ jobs:
     steps:
       - name: Check Port 22 Occupation
         run: |
-          OCCUPIED=$(sudo lsof -i:22 | grep -v "sshd")
+          OCCUPIED=$(sudo lsof -i:22 | grep -v "sshd" | grep -v "COMMAND")
           if [ -n "$OCCUPIED" ]; then
-            echo "Error: Port 22 is occupied by other processes!"
+            echo "Error: Port 22 is occupied by non-sshd processes!"
+            echo "Occupied Process Details: $OCCUPIED"
             exit 1
           fi
+          echo "Port 22 is available (only sshd uses it)."
 
       - name: Configure SSH Service
         run: |
@@ -21,40 +26,56 @@ jobs:
           sudo systemctl restart ssh
           sudo ufw allow 22/tcp
           sudo ufw reload
+          echo "SSH Config Verification:"
           grep -E "PasswordAuthentication|PermitRootLogin" /etc/ssh/sshd_config
-          systemctl status ssh
+          echo "SSH Service Status:"
+          systemctl status ssh --no-pager
+          echo "UFW Firewall Status:"
           ufw status
 
       - name: Set Random Root Password
         run: |
-          RANDOM_PASSWORD=$(openssl rand -base64 12 | sed 's/[\/+=]/X/g' | head -c 16)
+          RANDOM_PASSWORD=$(openssl rand -base64 18 | sed 's/[\/+=]/_/g' | head -c 16)
           echo "root:$RANDOM_PASSWORD" | sudo chpasswd
           echo "SSH_PASSWORD=$RANDOM_PASSWORD" >> $GITHUB_ENV
           echo "SSH_USER=root" >> $GITHUB_ENV
+          echo "Random root password generated successfully."
 
       - name: Install Tailscale
         run: |
           curl -fsSL https://tailscale.com/install.sh | sh
           sudo apt clean
+          echo "Tailscale installed successfully."
 
       - name: Connect to Tailscale
         env:
           TAILSCALE_AUTH_KEY: ${{ secrets.TAILSCALE_AUTH_KEY }}
         run: |
           sudo tailscale up --authkey "$TAILSCALE_AUTH_KEY" --hostname "github-ssh-${{ github.run_id }}"
-          TAILSCALE_IP=$(sudo tailscale ip -4)
+          TAILSCALE_IP=""
+          RETRIES=0
+          while [ -z "$TAILSCALE_IP" ] && [ $RETRIES -lt 10 ]; do
+            TAILSCALE_IP=$(sudo tailscale ip -4)
+            sleep 3
+            RETRIES=$((RETRIES + 1))
+          done
+          if [ -z "$TAILSCALE_IP" ]; then
+            echo "Error: Failed to get Tailscale IPv4 address."
+            exit 1
+          fi
           echo "TAILSCALE_IP=$TAILSCALE_IP" >> $GITHUB_ENV
+          echo "Tailscale connected. Private IP: $TAILSCALE_IP"
 
       - name: Verify SSH Connection
         run: |
-          echo "Tailscale Private IP: ${{ env.TAILSCALE_IP }}"
+          echo "Verifying SSH connectivity to ${{ env.TAILSCALE_IP }}:22..."
           if ! nc -z ${{ env.TAILSCALE_IP }} 22; then
-            echo "Error: SSH Port 22 is not reachable!"
+            echo "Error: SSH Port 22 is not reachable on ${{ env.TAILSCALE_IP }}."
             exit 1
           fi
-          echo "SSH Service is ready for connection."
+          echo "SSH Port 22 is reachable. Connection verification passed."
 
-      - name: Show SSH Connection Info & Keep Alive
+      - name: Show SSH Info & Keep Alive
         run: |
           echo "======================================"
           echo "SSH Remote Connection Info"
@@ -65,6 +86,6 @@ jobs:
           echo "Connect Command: ssh ${{ env.SSH_USER }}@${{ env.TAILSCALE_IP }}"
           echo "======================================"
           while true; do
-            echo "SSH Service is running... $(date)"
+            echo "SSH Service running... Current Time: $(date '+%Y-%m-%d %H:%M:%S')"
             sleep 300
           done
