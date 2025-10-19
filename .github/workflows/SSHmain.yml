@@ -9,16 +9,6 @@ jobs:
     timeout-minutes: 3600
 
     steps:
-      - name: Check Port 22 Occupation
-        run: |
-          OCCUPIED=$(sudo lsof -i:22 | grep -v "sshd" | grep -v "COMMAND")
-          if [ -n "$OCCUPIED" ]; then
-            echo "Error: Port 22 is occupied by non-sshd processes!"
-            echo "Occupied Process Details: $OCCUPIED"
-            exit 1
-          fi
-          echo "Port 22 is available (only sshd uses it)."
-
       - name: Configure SSH Service
         run: |
           sudo sed -i 's/PasswordAuthentication no/PasswordAuthentication yes/' /etc/ssh/sshd_config
