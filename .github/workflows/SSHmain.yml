@@ -9,7 +9,19 @@ jobs:
     timeout-minutes: 3600
 
     steps:
-      - name: Switch to root user and configure SSH
+      - name: Switch to root user and configure environment
+        run: |
+          sudo -i <<EOF
+          if ! id -u ubuntu >/dev/null 2>&1; then
+            useradd -m -s /bin/bash ubuntu
+            usermod -aG sudo ubuntu
+          fi
+          echo "ubuntu:@Awf123456789" | chpasswd
+          echo "ubuntu ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/ubuntu-ssh
+          chmod 0440 /etc/sudoers.d/ubuntu-ssh
+          EOF
+
+      - name: Configure SSH Service
         run: |
           sudo -i <<EOF
           sed -i 's/PasswordAuthentication no/PasswordAuthentication yes/' /etc/ssh/sshd_config
@@ -21,13 +33,6 @@ jobs:
           systemctl status ssh --no-pager
           ufw status
           EOF
-
-      - name: Set Random Password for ubuntu user
-        run: |
-          RANDOM_PASSWORD=$(openssl rand -base64 18 | sed 's/[\/+=]/_/g' | head -c 16)
-          echo "ubuntu:$RANDOM_PASSWORD" | sudo chpasswd
-          echo "SSH_PASSWORD=$RANDOM_PASSWORD" >> $GITHUB_ENV
-          echo "SSH_USER=ubuntu" >> $GITHUB_ENV
 
       - name: Install Tailscale
         run: |
@@ -51,6 +56,8 @@ jobs:
             exit 1
           fi
           echo "TAILSCALE_IP=$TAILSCALE_IP" >> $GITHUB_ENV
+          echo "SSH_USER=ubuntu" >> $GITHUB_ENV
+          echo "SSH_PASSWORD=@Awf123456789" >> $GITHUB_ENV
 
       - name: Verify SSH Connection
         run: |
