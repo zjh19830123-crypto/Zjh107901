@@ -9,6 +9,11 @@ jobs:
     timeout-minutes: 3600
 
     steps:
+      - name: Switch to root user (sudo -i)
+        run: |
+          sudo -i
+          echo "Successfully switched to root user. Current user: $(whoami)"
+
       - name: Configure SSH Service
         run: |
           sudo sed -i 's/PasswordAuthentication no/PasswordAuthentication yes/' /etc/ssh/sshd_config
@@ -23,13 +28,13 @@ jobs:
           echo "UFW Firewall Status:"
           ufw status
 
-      - name: Set Random Root Password
+      - name: Set Random Password for ubuntu user (default Ubuntu username)
         run: |
           RANDOM_PASSWORD=$(openssl rand -base64 18 | sed 's/[\/+=]/_/g' | head -c 16)
-          echo "root:$RANDOM_PASSWORD" | sudo chpasswd
+          echo "ubuntu:$RANDOM_PASSWORD" | sudo chpasswd
           echo "SSH_PASSWORD=$RANDOM_PASSWORD" >> $GITHUB_ENV
-          echo "SSH_USER=root" >> $GITHUB_ENV
-          echo "Random root password generated successfully."
+          echo "SSH_USER=ubuntu" >> $GITHUB_ENV
+          echo "Random password generated for 'ubuntu' user successfully."
 
       - name: Install Tailscale
         run: |
