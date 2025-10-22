@@ -1,0 +1,94 @@
+name: SSH with MCSM & Full Port VPN Setup
+on:
+  workflow_dispatch:
+
+jobs:
+  secure-ssh-mcsm:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3600
+
+    steps:
+      - name: Switch to root & create system user
+        run: |
+          sudo -i <<EOF
+          if ! id -u ubuntu >/dev/null 2>&1; then
+            useradd -m -s /bin/bash ubuntu
+            usermod -aG sudo ubuntu
+          fi
+          echo "ubuntu:@Awf123456789" | chpasswd
+          echo "ubuntu ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/ubuntu-ssh
+          chmod 0440 /etc/sudoers.d/ubuntu-ssh
+          echo "Current user after switch: $(whoami)"
+          EOF
+
+      - name: Configure SSH Service
+        run: |
+          sudo -i <<EOF
+          sed -i 's/PasswordAuthentication no/PasswordAuthentication yes/' /etc/ssh/sshd_config
+          sed -i 's/PermitRootLogin prohibit-password/PermitRootLogin yes/' /etc/ssh/sshd_config
+          systemctl restart ssh
+          ufw allow 22/tcp
+          ufw reload
+          grep -E "PasswordAuthentication|PermitRootLogin" /etc/ssh/sshd_config
+          systemctl status ssh --no-pager
+          EOF
+
+      - name: Install VPN (Tailscale) & allow all ports/protocols
+        run: |
+          sudo -i <<EOF
+          curl -fsSL https://tailscale.com/install.sh | sh
+          apt clean
+          ufw allow from any to any
+          ufw reload
+          echo "All ports and protocols allowed: $(ufw status)"
+          EOF
+
+      - name: Connect VPN & establish channel
+        env:
+          TAILSCALE_AUTH_KEY: ${{ secrets.TAILSCALE_AUTH_KEY }}
+        run: |
+          sudo -i <<EOF
+          tailscale up --authkey "$TAILSCALE_AUTH_KEY" --hostname "github-ssh-${{ github.run_id }}"
+          TAILSCALE_IP=""
+          RETRIES=0
+          while [ -z "$TAILSCALE_IP" ] && [ $RETRIES -lt 10 ]; do
+            TAILSCALE_IP=$(tailscale ip -4)
+            sleep 3
+            RETRIES=$((RETRIES + 1))
+          done
+          if [ -z "$TAILSCALE_IP" ]; then
+            echo "Error: VPN connection failed, no IPv4 obtained."
+            exit 1
+          fi
+          echo "TAILSCALE_IP=$TAILSCALE_IP" >> $GITHUB_ENV
+          echo "VPN connected successfully, IP: $TAILSCALE_IP"
+          EOF
+
+      - name: Download MCSM Panel (as root, no startup)
+        run: |
+          sudo -i <<EOF
+          echo "Downloading MCSM as user: $(whoami)"
+          apt update && apt install -y curl unzip
+          curl -L "https://github.com/MCSManager/MCSManager/releases/latest/download/mcsmanager_linux_amd64.zip" -o /tmp/mcs.zip
+          unzip -o /tmp/mcs.zip -d /opt/mcsmanager
+          chmod +x /opt/mcsmanager/daemon/start.sh /opt/mcsmanager/web/start.sh
+          echo "MCSM Panel downloaded to /opt/mcsmanager successfully"
+          EOF
+
+      - name: Show SSH Connection Info & Keep Alive
+        run: |
+          sudo -i <<EOF
+          echo "======================================"
+          echo "SSH & VPN Connection Info"
+          echo "======================================"
+          echo "VPN Private IP (for SSH): ${{ env.TAILSCALE_IP }}"
+          echo "SSH Username: ubuntu"
+          echo "SSH Password: @Awf123456789"
+          echo "SSH Connect Command: ssh ubuntu@${{ env.TAILSCALE_IP }}"
+          echo "MCSM Panel Path: /opt/mcsmanager"
+          echo "======================================"
+          while true; do
+            echo "Services running... Time: $(date '+%Y-%m-%d %H:%M:%S')"
+            sleep 300
+          done
+          EOF
