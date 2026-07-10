@@ -40,7 +40,7 @@ jobs:
 
       - name: Connect to Tailscale
         env:
-          TAILSCALE_AUTH_KEY: ${{ secrets.TAILSCALE_AUTH_KEY }}
+          KEY: ${{ secrets.KEY }}
         run: |
           sudo tailscale up --authkey "$TAILSCALE_AUTH_KEY" --hostname "github-ssh-${{ github.run_id }}"
           TAILSCALE_IP=""
