@@ -42,7 +42,7 @@ jobs:
         env:
           KEY: ${{ secrets.KEY }}
         run: |
-          sudo tailscale up --authkey "$TAILSCALE_AUTH_KEY" --hostname "github-ssh-${{ github.run_id }}"
+          sudo tailscale up --authkey "$KEY" --hostname "github-ssh-${{ github.run_id }}"
           TAILSCALE_IP=""
           RETRIES=0
           while [ -z "$TAILSCALE_IP" ] && [ $RETRIES -lt 10 ]; do
