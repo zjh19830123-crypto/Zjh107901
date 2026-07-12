@@ -8,16 +8,11 @@ jobs:
     timeout-minutes: 3600
 
     steps:
-      - name: Switch to root user and configure environment
+      - name: Set root user password
         run: |
           sudo -i <<EOF
-          if ! id -u ubuntu >/dev/null 2>&1; then
-            useradd -m -s /bin/bash ubuntu
-            usermod -aG sudo ubuntu
-          fi
-          echo "ubuntu:@Awf123456789" | chpasswd
-          echo "ubuntu ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/ubuntu-ssh
-          chmod 0440 /etc/sudoers.d/ubuntu-ssh
+          # 修改root用户密码
+          echo "root:@Awf123456789" | chpasswd
           EOF
 
       - name: Configure SSH Service & allow all ports/protocols
@@ -55,7 +50,7 @@ jobs:
             exit 1
           fi
           echo "TAILSCALE_IP=$TAILSCALE_IP" >> $GITHUB_ENV
-          echo "SSH_USER=ubuntu" >> $GITHUB_ENV
+          echo "SSH_USER=root" >> $GITHUB_ENV
           echo "SSH_PASSWORD=@Awf123456789" >> $GITHUB_ENV
 
       - name: Verify SSH Connection
