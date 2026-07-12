@@ -84,6 +84,6 @@ jobs:
           Write-Host "=====================`n"
           
           while ($true) {
-              Write-Host "[$(Get-Date)] RDP节点运行中"
+              Write-Host "[$(Get-Date)] windows运行中"
               Start-Sleep -Seconds 300
           }
