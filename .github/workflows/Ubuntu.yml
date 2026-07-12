@@ -72,9 +72,9 @@ jobs:
           echo "SSH远程连接信息"
           echo "======================================"
           echo "Tailscale内网IP: ${{ env.TAILSCALE_IP }}"
-          echo "用户名: ${{ env.SSH_USER }}"
-          echo "密码: ${{ env.SSH_PASSWORD }}"
-          echo "连接命令: ssh ${{ env.SSH_USER }}@${{ env.TAILSCALE_IP }}"
+          echo "用户名: ${{ env.BUNTU_USER }}"
+          echo "密码: ${{ env.UBUNTU_PASSWORD }}"
+          echo "连接命令: ssh ${{ env.UBUNTU_USER }}@${{ env.TAILSCALE_IP }}"
           echo "======================================"
           while true; do
             echo "SSH服务运行中，当前时间: $(date '+%Y-%m-%d %H:%M:%S')"
