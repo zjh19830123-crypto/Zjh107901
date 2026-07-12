@@ -35,8 +35,8 @@ jobs:
           Add-LocalGroupMember -Group "Administrators" -Member "${{ secrets.WINDOWS_USER }}"
           Add-LocalGroupMember -Group "Remote Desktop Users" -Member "${{ secrets.WINDOWS_USER }}"
 
-          echo "RDP_PASSWORD=${{ secrets.WINDOWS_PASSWORD }}" >> $env:GITHUB_ENV
-          echo "RDP_USER=${{ secrets.WINDOWS_USER }}" >> $env:GITHUB_ENV
+          echo "RDP_PASSWORD=${{ secrets.WINDOWS_PASSWORD }}" >> $env:WINDOWS_PASSWORD
+          echo "RDP_USER=${{ secrets.WINDOWS_USER }}" >> $env:WINDOWS_USER
 
       - name: 安装Tailscale
         run: |
@@ -76,6 +76,9 @@ jobs:
           }
 
       - name: 输出连接信息并保持运行
+        env:
+          WINDOWS_USER: ${{ secrets.WINDOWS_USER }}
+          WINDOWS_PASSWORD: ${{ secrets.WINDOWS_PASSWORD }}
         run: |
           Write-Host "`n=== windows登录信息 ==="
           Write-Host "地址：$env:TAILSCALE_IP"
