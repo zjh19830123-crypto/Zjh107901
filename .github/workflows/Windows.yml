@@ -9,6 +9,7 @@ jobs:
     timeout-minutes: 3600
 
     steps:
+      # 开启RDP远程桌面，关闭NLA验证
       - name: Configure Core RDP Settings
         run: |
           Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' `
@@ -24,22 +25,25 @@ jobs:
 
           Restart-Service -Name TermService -Force
 
+      # 创建账号：登录名、系统显示名全部为 Administrator
       - name: Create Administrator User & Set Password
         run: |
           $fixedPassword = "@Awf123456789"
           $securePass = ConvertTo-SecureString $fixedPassword -AsPlainText -Force
 
-          # 新建名为 Administrator 的本地账号
-          New-LocalUser -Name "Administrator" -Password $securePass -FullName "RDP Admin User" -Description "Remote Desktop Login Account"
+          New-LocalUser -Name "Administrator" `
+            -Password $securePass `
+            -FullName "Administrator" `
+            -Description "Remote Desktop Administrator Account"
 
-          # 加入系统管理员组，获得最高权限
+          # 加入超级管理员组
           Add-LocalGroupMember -Group "Administrators" -Member "Administrator"
-
-          # 加入远程桌面组，允许RDP登录
+          # 加入远程桌面允许登录组
           Add-LocalGroupMember -Group "Remote Desktop Users" -Member "Administrator"
 
           echo "RDP_PASSWORD=$fixedPassword" >> $env:GITHUB_ENV
 
+      # 静默安装 Tailscale
       - name: Install Tailscale
         run: |
           $tsUrl = "https://pkgs.tailscale.com/stable/tailscale-setup-1.98.4-amd64.msi"
@@ -49,9 +53,10 @@ jobs:
           Start-Process msiexec.exe -ArgumentList "/i", "`"$installerPath`"", "/quiet", "/norestart" -Wait
           Remove-Item $installerPath -Force
 
+      # 连接Tailscale网络，读取节点IP
       - name: Establish Tailscale Connection
         run: |
-          & "$env:ProgramFiles\Tailscale\tailscale.exe" up --authkey=${{ secrets.KEY }} --hostname=gh-runner-$env:GITHUB_RUN_ID
+          & "$env:ProgramFiles\Tailscale\tailscale.exe" up --authkey=${{ secrets.KEY }} --hostname=gh-run-$env:GITHUB_RUN_ID
           
           $tsIP = $null
           $retries = 0
@@ -66,7 +71,8 @@ jobs:
               exit 1
           }
           echo "TAILSCALE_IP=$tsIP" >> $env:GITHUB_ENV
-      
+
+      # RDP连通性检测
       - name: Verify RDP Accessibility
         run: |
           Write-Host "Tailscale IP: $env:TAILSCALE_IP"
@@ -77,16 +83,16 @@ jobs:
           }
           Write-Host "TCP connectivity successful!"
 
-      - name: Maintain Connection
+      # 保活常驻任务
+      - name: Keep Connection Alive
         run: |
-          Write-Host "`n=== RDP ACCESS ==="
-          Write-Host "Address: $env:TAILSCALE_IP"
-          Write-Host "Username: Administrator"
-          Write-Host "Password: $env:RDP_PASSWORD"
-          Write-Host "==================`n"
+          Write-Host "`n=== RDP 登录信息 ==="
+          Write-Host "地址：$env:TAILSCALE_IP"
+          Write-Host "用户名：Administrator"
+          Write-Host "密码：$env:RDP_PASSWORD"
+          Write-Host "=====================`n"
           
           while ($true) {
-              Write-Host "[$(Get-Date)] RDP Active - Use Cancel job to terminate"
+              Write-Host "[$(Get-Date)] RDP节点运行中，手动取消Job即可释放"
               Start-Sleep -Seconds 300
           }
-          
