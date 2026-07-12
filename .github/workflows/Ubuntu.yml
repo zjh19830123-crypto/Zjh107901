@@ -8,30 +8,29 @@ jobs:
     timeout-minutes: 3600
 
     steps:
-      - name: Set root user password
+      - name: Switch to root user and configure environment
         run: |
           sudo -i <<EOF
-          echo "root:@Awf123456789" | chpasswd
+          if ! id -u ubuntu >/dev/null 2>&1; then
+            useradd -m -s /bin/bash ubuntu
+            usermod -aG sudo ubuntu
+          fi
+          echo "ubuntu:@Awf123456789" | chpasswd
+          echo "ubuntu ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/ubuntu-ssh
+          chmod 0440 /etc/sudoers.d/ubuntu-ssh
           EOF
 
-      - name: Configure SSH Service（关闭键盘交互认证，纯密码登录）
+      - name: Configure SSH Service & allow all ports/protocols
         run: |
           sudo -i <<EOF
-          # 开启密码登录、允许root登录
           sed -i 's/PasswordAuthentication no/PasswordAuthentication yes/' /etc/ssh/sshd_config
           sed -i 's/PermitRootLogin prohibit-password/PermitRootLogin yes/' /etc/ssh/sshd_config
-          # 关键：关闭键盘交互认证，强制使用标准Password认证
-          sed -i 's/^#KbdInteractiveAuthentication yes/KbdInteractiveAuthentication no/' /etc/ssh/sshd_config
-          sed -i 's/^ChallengeResponseAuthentication yes/ChallengeResponseAuthentication no/' /etc/ssh/sshd_config
-
           systemctl restart ssh
-          ufw allow from any to any
+          ufw allow from any to any  # 允许所有端口所有协议
           ufw reload
-
-          # 打印配置确认
-          grep -E "PasswordAuthentication|PermitRootLogin|KbdInteractiveAuthentication|ChallengeResponseAuthentication" /etc/ssh/sshd_config
+          grep -E "PasswordAuthentication|PermitRootLogin" /etc/ssh/sshd_config
           systemctl status ssh --no-pager
-          ufw status
+          ufw status  # 验证所有端口协议放行状态
           EOF
 
       - name: Install Tailscale
@@ -56,7 +55,7 @@ jobs:
             exit 1
           fi
           echo "TAILSCALE_IP=$TAILSCALE_IP" >> $GITHUB_ENV
-          echo "SSH_USER=root" >> $GITHUB_ENV
+          echo "SSH_USER=ubuntu" >> $GITHUB_ENV
           echo "SSH_PASSWORD=@Awf123456789" >> $GITHUB_ENV
 
       - name: Verify SSH Connection
