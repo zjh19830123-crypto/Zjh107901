@@ -11,21 +11,27 @@ jobs:
       - name: Set root user password
         run: |
           sudo -i <<EOF
-          # 修改root用户密码
           echo "root:@Awf123456789" | chpasswd
           EOF
 
-      - name: Configure SSH Service & allow all ports/protocols
+      - name: Configure SSH Service（关闭键盘交互认证，纯密码登录）
         run: |
           sudo -i <<EOF
+          # 开启密码登录、允许root登录
           sed -i 's/PasswordAuthentication no/PasswordAuthentication yes/' /etc/ssh/sshd_config
           sed -i 's/PermitRootLogin prohibit-password/PermitRootLogin yes/' /etc/ssh/sshd_config
+          # 关键：关闭键盘交互认证，强制使用标准Password认证
+          sed -i 's/^#KbdInteractiveAuthentication yes/KbdInteractiveAuthentication no/' /etc/ssh/sshd_config
+          sed -i 's/^ChallengeResponseAuthentication yes/ChallengeResponseAuthentication no/' /etc/ssh/sshd_config
+
           systemctl restart ssh
-          ufw allow from any to any  # 允许所有端口所有协议
+          ufw allow from any to any
           ufw reload
-          grep -E "PasswordAuthentication|PermitRootLogin" /etc/ssh/sshd_config
+
+          # 打印配置确认
+          grep -E "PasswordAuthentication|PermitRootLogin|KbdInteractiveAuthentication|ChallengeResponseAuthentication" /etc/ssh/sshd_config
           systemctl status ssh --no-pager
-          ufw status  # 验证所有端口协议放行状态
+          ufw status
           EOF
 
       - name: Install Tailscale
