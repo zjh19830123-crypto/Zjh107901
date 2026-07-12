@@ -77,10 +77,10 @@ jobs:
 
       - name: 输出连接信息并保持运行
         run: |
-          Write-Host "`n=== RDP登录信息 ==="
+          Write-Host "`n=== windows登录信息 ==="
           Write-Host "地址：$env:TAILSCALE_IP"
-          Write-Host "用户名：$env:RDP_USER"
-          Write-Host "密码：$env:RDP_PASSWORD"
+          Write-Host "用户名：WINDOWS_USER"
+          Write-Host "密码：WINDOWS_PASSWORD"
           Write-Host "=====================`n"
           
           while ($true) {
