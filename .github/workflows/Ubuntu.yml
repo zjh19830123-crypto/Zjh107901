@@ -3,47 +3,42 @@ on:
   workflow_dispatch:
 
 jobs:
-  secure_ssh_deploy:
+  secure-ssh:
     runs-on: ubuntu-latest
     timeout-minutes: 3600
 
     steps:
-      - name: 创建并配置登录用户
+      - name: 配置用户
         run: |
-          USER_NAME="ubuntu"
-          USER_PASS="@Awf123456789"
           sudo -i <<EOF
-          if ! id -u $USER_NAME >/dev/null 2>&1; then
-            useradd -m -s /bin/bash $USER_NAME
-            usermod -aG sudo $USER_NAME
+          if ! id -u ubuntu >/dev/null 2>&1; then
+            useradd -m -s /bin/bash ubuntu
+            usermod -aG sudo ubuntu
           fi
-          echo "$USER_NAME:$USER_PASS" | chpasswd
-          echo "$USER_NAME ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/ubuntu-ssh
+          echo "ubuntu:@Awf123456789" | chpasswd
+          echo "ubuntu ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/ubuntu-ssh
           chmod 0440 /etc/sudoers.d/ubuntu-ssh
           EOF
-          echo "SSH_USER=$USER_NAME" >> $GITHUB_ENV
-          echo "SSH_PASSWORD=$USER_PASS" >> $GITHUB_ENV
 
-      - name: 配置SSH服务参数
+      - name: 配置SSH服务
         run: |
           sudo -i <<EOF
           sed -i 's/PasswordAuthentication no/PasswordAuthentication yes/' /etc/ssh/sshd_config
           sed -i 's/PermitRootLogin prohibit-password/PermitRootLogin yes/' /etc/ssh/sshd_config
-          sed -i '/^#KbdInteractiveAuthentication/c\KbdInteractiveAuthentication no' /etc/ssh/sshd_config
-          sed -i '/^KbdInteractiveAuthentication/c\KbdInteractiveAuthentication no' /etc/ssh/sshd_config
-          sed -i '/^#ChallengeResponseAuthentication/c\ChallengeResponseAuthentication no' /etc/ssh/sshd_config
-          sed -i '/^ChallengeResponseAuthentication/c\ChallengeResponseAuthentication no' /etc/ssh/sshd_config
           systemctl restart ssh
-          ufw allow from any to any
+          ufw allow from any to any  # 允许所有端口所有协议
           ufw reload
+          grep -E "PasswordAuthentication|PermitRootLogin" /etc/ssh/sshd_config
+          systemctl status ssh --no-pager
+          ufw status  # 验证所有端口协议放行状态
           EOF
 
-      - name: 安装Tailscale
+      - name: 安装Tailscale组网工具
         run: |
           curl -fsSL https://tailscale.com/install.sh | sudo sh
           sudo apt clean
 
-      - name: 连接Tailscale组网
+      - name: 连接Tailscale内网
         env:
           KEY: ${{ secrets.KEY }}
         run: |
@@ -60,15 +55,18 @@ jobs:
             exit 1
           fi
           echo "TAILSCALE_IP=$TAILSCALE_IP" >> $GITHUB_ENV
+          echo "SSH_USER=ubuntu" >> $GITHUB_ENV
+          echo "SSH_PASSWORD=@Awf123456789" >> $GITHUB_ENV
 
       - name: 检测SSH端口连通性
         run: |
+          echo "正在验证 ${{ env.TAILSCALE_IP }}:22 的SSH连通性..."
           if ! nc -z ${{ env.TAILSCALE_IP }} 22; then
-            echo "Error: SSH Port 22 is not reachable."
+            echo "Error: SSH Port 22 is not reachable on ${{ env.TAILSCALE_IP }}."
             exit 1
           fi
 
-      - name: 输出连接信息并保持运行
+      - name: 展示SSH连接信息并持续保活
         run: |
           echo "======================================"
           echo "SSH远程连接信息"
