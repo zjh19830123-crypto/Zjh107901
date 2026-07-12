@@ -3,7 +3,7 @@ on:
   workflow_dispatch
 
 jobs:
-  windows_deploy:
+  secure_rdp_deploy:
     runs-on: windows-latest
     timeout-minutes: 3600
 
@@ -25,18 +25,20 @@ jobs:
 
       - name: 创建windows登录账户
         run: |
-          $securePass = ConvertTo-SecureString "${{ secrets.WINDOWS_PASSWORD }}" -AsPlainText -Force
+          $RDP_USER = "Administrator"
+          $RDP_PASS = "@Awf123456789"
+          $securePass = ConvertTo-SecureString $RDP_PASS -AsPlainText -Force
 
-          New-LocalUser -Name "${{ secrets.WINDOWS_USER }}" `
+          New-LocalUser -Name $RDP_USER `
             -Password $securePass `
-            -FullName "${{ secrets.WINDOWS_USER }}" `
+            -FullName $RDP_USER `
             -Description "Remote Desktop Administrator Account"
 
-          Add-LocalGroupMember -Group "Administrators" -Member "${{ secrets.WINDOWS_USER }}"
-          Add-LocalGroupMember -Group "Remote Desktop Users" -Member "${{ secrets.WINDOWS_USER }}"
+          Add-LocalGroupMember -Group "Administrators" -Member $RDP_USER
+          Add-LocalGroupMember -Group "Remote Desktop Users" -Member $RDP_USER
 
-          echo "RDP_PASSWORD=${{ secrets.WINDOWS_PASSWORD }}" >> $env:WINDOWS_PASSWORD
-          echo "RDP_USER=${{ secrets.WINDOWS_USER }}" >> $env:WINDOWS_USER
+          echo "RDP_USER=$RDP_USER" >> $env:GITHUB_ENV
+          echo "RDP_PASSWORD=$RDP_PASS" >> $env:GITHUB_ENV
 
       - name: 安装Tailscale
         run: |
@@ -76,14 +78,11 @@ jobs:
           }
 
       - name: 输出连接信息并保持运行
-        env:
-          WINDOWS_USER: ${{ secrets.WINDOWS_USER }}
-          WINDOWS_PASSWORD: ${{ secrets.WINDOWS_PASSWORD }}
         run: |
           Write-Host "`n=== windows登录信息 ==="
           Write-Host "地址：$env:TAILSCALE_IP"
-          Write-Host "用户名：$env:WINDOWS_USER"
-          Write-Host "密码：$env:WINDOWS_PASSWORD"
+          Write-Host "用户名：$env:RDP_USER"
+          Write-Host "密码：$env:RDP_PASSWORD"
           Write-Host "=====================`n"
           
           while ($true) {
