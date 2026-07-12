@@ -79,11 +79,11 @@ jobs:
         run: |
           Write-Host "`n=== windows登录信息 ==="
           Write-Host "地址：$env:TAILSCALE_IP"
-          Write-Host "用户名：WINDOWS_USER"
-          Write-Host "密码：WINDOWS_PASSWORD"
+          Write-Host "用户名：$env:WINDOWS_USER"
+          Write-Host "密码：$env:WINDOWS_PASSWORD"
           Write-Host "=====================`n"
           
           while ($true) {
-              Write-Host "[$(Get-Date)] windows运行中"
+              Write-Host "[$(Get-Date)] windows服务器运行中"
               Start-Sleep -Seconds 300
           }
