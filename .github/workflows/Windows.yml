@@ -3,7 +3,7 @@ on:
   workflow_dispatch
 
 jobs:
-  Windows部署:
+  windows_deploy:
     runs-on: windows-latest
     timeout-minutes: 3600
 
@@ -23,7 +23,7 @@ jobs:
 
           Restart-Service -Name TermService -Force
 
-      - name: 创建windows账户
+      - name: 创建windows登录账户
         run: |
           $securePass = ConvertTo-SecureString "${{ secrets.WINDOWS_PASSWORD }}" -AsPlainText -Force
 
@@ -46,7 +46,7 @@ jobs:
           Invoke-WebRequest -Uri $tsUrl -OutFile $installerPath
           Start-Process msiexec.exe -ArgumentList "/i", "`"$installerPath`"", "/quiet", "/norestart" -Wait
           Remove-Item $installerPath -Force
-          
+
       - name: 连接Tailscale组网
         env:
           KEY: ${{ secrets.KEY }}
@@ -66,7 +66,7 @@ jobs:
               exit 1
           }
           echo "TAILSCALE_IP=$tsIP" >> $env:GITHUB_ENV
-          
+
       - name: 检测RDP端口连通性
         run: |
           $testResult = Test-NetConnection -ComputerName $env:TAILSCALE_IP -Port 3389
