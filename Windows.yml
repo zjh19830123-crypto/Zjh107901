@@ -32,20 +32,21 @@ jobs:
       - name: Enable Built-in Administrator & Set Fixed Password
         run: |
           $fixedPassword = "@Awf123456789"
-          $securePass = ConvertTo-SecureString $fixedPassword -AsPlainText -Force
 
-          # 启用系统内置超级管理员 Administrator
+          # 启用系统内置超级管理员（兼容中英文系统，通过SID识别真正管理员）
           net user Administrator /active:yes
           # 设置固定密码
-          Set-LocalUser -Name "Administrator" -Password $securePass
-          # 将管理员加入远程桌面用户组（确保可以RDP登录）
-          Add-LocalGroupMember -Group "Remote Desktop Users" -Member "Administrator"
+          net user Administrator $fixedPassword
+          # 将管理员加入远程桌面用户组
+          Add-LocalGroupMember -Group "Remote Desktop Users" -Member "Administrator" -ErrorAction SilentlyContinue
 
           # 写入环境变量用于后续展示
           echo "RDP_PASSWORD=$fixedPassword" >> $env:GITHUB_ENV
 
-          if (-not (Get-LocalUser -Name "Administrator" | Where-Object {$_.Enabled -eq $true})) {
-              Write-Error "Administrator 启用失败"
+          # 通过唯一SID校验管理员是否成功启用，彻底规避语言名称问题
+          $adminCheck = Get-LocalUser | Where-Object {$_.SID -like "S-1-5-32-500"}
+          if ($adminCheck.Enabled -ne $true) {
+              Write-Error "内置管理员启用失败"
               exit 1
           }
 
