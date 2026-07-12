@@ -1,16 +1,14 @@
 name: Windows
-
 on:
   workflow_dispatch
 
 jobs:
-  secure-rdp:
+  Windows部署:
     runs-on: windows-latest
     timeout-minutes: 3600
 
     steps:
-      # 开启RDP远程桌面，关闭NLA验证
-      - name: Configure Core RDP Settings
+      - name: 配置RDP基础参数
         run: |
           Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' `
                              -Name "fDenyTSConnections" -Value 0 -Force
@@ -25,26 +23,22 @@ jobs:
 
           Restart-Service -Name TermService -Force
 
-      # 创建账号：登录名、系统显示名全部为 Administrator
-      - name: Create Administrator User & Set Password
+      - name: 创建windows账户
         run: |
-          $fixedPassword = "@Awf123456789"
-          $securePass = ConvertTo-SecureString $fixedPassword -AsPlainText -Force
+          $securePass = ConvertTo-SecureString "${{ secrets.WINDOWS_PASSWORD }}" -AsPlainText -Force
 
-          New-LocalUser -Name "Administrator" `
+          New-LocalUser -Name "${{ secrets.WINDOWS_USER }}" `
             -Password $securePass `
-            -FullName "Administrator" `
+            -FullName "${{ secrets.WINDOWS_USER }}" `
             -Description "Remote Desktop Administrator Account"
 
-          # 加入超级管理员组
-          Add-LocalGroupMember -Group "Administrators" -Member "Administrator"
-          # 加入远程桌面允许登录组
-          Add-LocalGroupMember -Group "Remote Desktop Users" -Member "Administrator"
+          Add-LocalGroupMember -Group "Administrators" -Member "${{ secrets.WINDOWS_USER }}"
+          Add-LocalGroupMember -Group "Remote Desktop Users" -Member "${{ secrets.WINDOWS_USER }}"
 
-          echo "RDP_PASSWORD=$fixedPassword" >> $env:GITHUB_ENV
+          echo "RDP_PASSWORD=${{ secrets.WINDOWS_PASSWORD }}" >> $env:GITHUB_ENV
+          echo "RDP_USER=${{ secrets.WINDOWS_USER }}" >> $env:GITHUB_ENV
 
-      # 静默安装 Tailscale
-      - name: Install Tailscale
+      - name: 安装Tailscale
         run: |
           $tsUrl = "https://pkgs.tailscale.com/stable/tailscale-setup-latest-amd64.msi"
           $installerPath = "$env:TEMP\tailscale.msi"
@@ -52,11 +46,12 @@ jobs:
           Invoke-WebRequest -Uri $tsUrl -OutFile $installerPath
           Start-Process msiexec.exe -ArgumentList "/i", "`"$installerPath`"", "/quiet", "/norestart" -Wait
           Remove-Item $installerPath -Force
-
-      # 连接Tailscale网络，读取节点IP
-      - name: Establish Tailscale Connection
+          
+      - name: 连接Tailscale组网
+        env:
+          KEY: ${{ secrets.KEY }}
         run: |
-          & "$env:ProgramFiles\Tailscale\tailscale.exe" up --authkey=${{ secrets.KEY }} --hostname=gh-run-$env:GITHUB_RUN_ID
+          & "$env:ProgramFiles\Tailscale\tailscale.exe" up --authkey=$env:KEY --hostname=gh-run-$env:GITHUB_RUN_ID
           
           $tsIP = $null
           $retries = 0
@@ -71,28 +66,24 @@ jobs:
               exit 1
           }
           echo "TAILSCALE_IP=$tsIP" >> $env:GITHUB_ENV
-
-      # RDP连通性检测
-      - name: Verify RDP Accessibility
+          
+      - name: 检测RDP端口连通性
         run: |
-          Write-Host "Tailscale IP: $env:TAILSCALE_IP"
           $testResult = Test-NetConnection -ComputerName $env:TAILSCALE_IP -Port 3389
           if (-not $testResult.TcpTestSucceeded) {
               Write-Error "TCP connection to RDP port 3389 failed"
               exit 1
           }
-          Write-Host "TCP connectivity successful!"
 
-      # 保活常驻任务
-      - name: Keep Connection Alive
+      - name: 输出连接信息并保持运行
         run: |
-          Write-Host "`n=== RDP 登录信息 ==="
+          Write-Host "`n=== RDP登录信息 ==="
           Write-Host "地址：$env:TAILSCALE_IP"
-          Write-Host "用户名：Administrator"
+          Write-Host "用户名：$env:RDP_USER"
           Write-Host "密码：$env:RDP_PASSWORD"
           Write-Host "=====================`n"
           
           while ($true) {
-              Write-Host "[$(Get-Date)] RDP节点运行中，手动取消Job即可释放"
+              Write-Host "[$(Get-Date)] RDP节点运行中"
               Start-Sleep -Seconds 300
           }
