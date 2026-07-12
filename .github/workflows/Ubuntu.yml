@@ -3,22 +3,26 @@ on:
   workflow_dispatch:
 
 jobs:
-  Ubuntu_deploy:
+  secure_ssh_deploy:
     runs-on: ubuntu-latest
     timeout-minutes: 3600
 
     steps:
       - name: 创建并配置登录用户
         run: |
+          USER_NAME="ubuntu"
+          USER_PASS="@Awf123456789"
           sudo -i <<EOF
-          if ! id -u ${{ secrets.UBUNTU_USER }} >/dev/null 2>&1; then
-            useradd -m -s /bin/bash ${{ secrets.UBUNTU_USER }}
-            usermod -aG sudo ${{ secrets.UBUNTU_USER }}
+          if ! id -u $USER_NAME >/dev/null 2>&1; then
+            useradd -m -s /bin/bash $USER_NAME
+            usermod -aG sudo $USER_NAME
           fi
-          echo "${{ secrets.UBUNTU_USER }}:${{ secrets.UBUNTU_PASSWORD }}" | chpasswd
-          echo "${{ secrets.UBUNTU_USER }} ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/ubuntu-ssh
+          echo "$USER_NAME:$USER_PASS" | chpasswd
+          echo "$USER_NAME ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/ubuntu-ssh
           chmod 0440 /etc/sudoers.d/ubuntu-ssh
           EOF
+          echo "SSH_USER=$USER_NAME" >> $GITHUB_ENV
+          echo "SSH_PASSWORD=$USER_PASS" >> $GITHUB_ENV
 
       - name: 配置SSH服务参数
         run: |
@@ -56,8 +60,6 @@ jobs:
             exit 1
           fi
           echo "TAILSCALE_IP=$TAILSCALE_IP" >> $GITHUB_ENV
-          echo "SSH_USER=${{ secrets.UBUNTU_USER }}" >> $GITHUB_ENV
-          echo "SSH_PASSWORD=${{ secrets.UBUNTU_PASSWORD }}" >> $GITHUB_ENV
 
       - name: 检测SSH端口连通性
         run: |
@@ -72,9 +74,9 @@ jobs:
           echo "SSH远程连接信息"
           echo "======================================"
           echo "Tailscale内网IP: ${{ env.TAILSCALE_IP }}"
-          echo "用户名: ${{ env.BUNTU_USER }}"
-          echo "密码: ${{ env.UBUNTU_PASSWORD }}"
-          echo "连接命令: ssh ${{ env.UBUNTU_USER }}@${{ env.TAILSCALE_IP }}"
+          echo "用户名: ${{ env.SSH_USER }}"
+          echo "密码: ${{ env.SSH_PASSWORD }}"
+          echo "连接命令: ssh ${{ env.SSH_USER }}@${{ env.TAILSCALE_IP }}"
           echo "======================================"
           while true; do
             echo "Ubuntu服务器运行中"
