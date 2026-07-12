@@ -1,7 +1,7 @@
-name: Windows
+name: RDP
 
 on:
-  workflow_dispatch:
+  workflow_dispatch
 
 jobs:
   secure-rdp:
@@ -11,7 +11,6 @@ jobs:
     steps:
       - name: Configure Core RDP Settings
         run: |
-          # Enable Remote Desktop and disable Network Level Authentication (if needed)
           Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' `
                              -Name "fDenyTSConnections" -Value 0 -Force
           Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' `
@@ -19,33 +18,26 @@ jobs:
           Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' `
                              -Name "SecurityLayer" -Value 0 -Force
 
-          # Remove any existing rule with the same name to avoid duplication
           netsh advfirewall firewall delete rule name="RDP-Tailscale"
-          
-          # For testing, allow any incoming connection on port 3389
           netsh advfirewall firewall add rule name="RDP-Tailscale" `
             dir=in action=allow protocol=TCP localport=3389
 
-          # Restart the Remote Desktop service to ensure changes take effect
           Restart-Service -Name TermService -Force
 
       - name: Enable Built-in Administrator & Set Fixed Password
         run: |
           $fixedPassword = "@Awf123456789"
+          $securePass = ConvertTo-SecureString $fixedPassword -AsPlainText -Force
 
-          # 启用系统内置超级管理员（兼容中英文系统，通过SID识别真正管理员）
-          net user Administrator /active:yes
-          # 设置固定密码
-          net user Administrator $fixedPassword
-          # 将管理员加入远程桌面用户组
-          Add-LocalGroupMember -Group "Remote Desktop Users" -Member "Administrator" -ErrorAction SilentlyContinue
+          # 使用SID定位原生超级管理员，彻底解决中英文名称报错
+          $builtInAdmin = Get-LocalUser | Where-Object { $_.SID -eq "S-1-5-32-500" }
+          Enable-LocalUser -InputObject $builtInAdmin
+          Set-LocalUser -InputObject $builtInAdmin -Password $securePass
+          Add-LocalGroupMember -Group "Remote Desktop Users" -Member $builtInAdmin -ErrorAction SilentlyContinue
 
-          # 写入环境变量用于后续展示
           echo "RDP_PASSWORD=$fixedPassword" >> $env:GITHUB_ENV
 
-          # 通过唯一SID校验管理员是否成功启用，彻底规避语言名称问题
-          $adminCheck = Get-LocalUser | Where-Object {$_.SID -like "S-1-5-32-500"}
-          if ($adminCheck.Enabled -ne $true) {
+          if (-not $builtInAdmin.Enabled) {
               Write-Error "内置管理员启用失败"
               exit 1
           }
@@ -61,10 +53,8 @@ jobs:
 
       - name: Establish Tailscale Connection
         run: |
-          # Bring up Tailscale with the provided auth key and set a unique hostname
           & "$env:ProgramFiles\Tailscale\tailscale.exe" up --authkey=${{ secrets.KEY }} --hostname=gh-runner-$env:GITHUB_RUN_ID
           
-          # Wait for Tailscale to assign an IP
           $tsIP = $null
           $retries = 0
           while (-not $tsIP -and $retries -lt 10) {
@@ -82,8 +72,6 @@ jobs:
       - name: Verify RDP Accessibility
         run: |
           Write-Host "Tailscale IP: $env:TAILSCALE_IP"
-          
-          # Test connectivity using Test-NetConnection against the Tailscale IP on port 3389
           $testResult = Test-NetConnection -ComputerName $env:TAILSCALE_IP -Port 3389
           if (-not $testResult.TcpTestSucceeded) {
               Write-Error "TCP connection to RDP port 3389 failed"
@@ -99,8 +87,7 @@ jobs:
           Write-Host "Password: $env:RDP_PASSWORD"
           Write-Host "==================`n"
           
-          # Keep runner active indefinitely (or until manually cancelled)
           while ($true) {
-              Write-Host "[$(Get-Date)] RDP Active - Use Ctrl+C in workflow to terminate"
+              Write-Host "[$(Get-Date)] RDP Active - Use Cancel job to terminate"
               Start-Sleep -Seconds 300
           }
