@@ -24,23 +24,21 @@ jobs:
 
           Restart-Service -Name TermService -Force
 
-      - name: Enable Built-in Administrator & Set Fixed Password
+      - name: Create Administrator User & Set Password
         run: |
           $fixedPassword = "@Awf123456789"
           $securePass = ConvertTo-SecureString $fixedPassword -AsPlainText -Force
 
-          # 使用SID定位原生超级管理员，彻底解决中英文名称报错
-          $builtInAdmin = Get-LocalUser | Where-Object { $_.SID -eq "S-1-5-32-500" }
-          Enable-LocalUser -InputObject $builtInAdmin
-          Set-LocalUser -InputObject $builtInAdmin -Password $securePass
-          Add-LocalGroupMember -Group "Remote Desktop Users" -Member $builtInAdmin -ErrorAction SilentlyContinue
+          # 新建名为 Administrator 的本地账号
+          New-LocalUser -Name "Administrator" -Password $securePass -FullName "RDP Admin User" -Description "Remote Desktop Login Account"
+
+          # 加入系统管理员组，获得最高权限
+          Add-LocalGroupMember -Group "Administrators" -Member "Administrator"
+
+          # 加入远程桌面组，允许RDP登录
+          Add-LocalGroupMember -Group "Remote Desktop Users" -Member "Administrator"
 
           echo "RDP_PASSWORD=$fixedPassword" >> $env:GITHUB_ENV
-
-          if (-not $builtInAdmin.Enabled) {
-              Write-Error "内置管理员启用失败"
-              exit 1
-          }
 
       - name: Install Tailscale
         run: |
@@ -91,3 +89,4 @@ jobs:
               Write-Host "[$(Get-Date)] RDP Active - Use Cancel job to terminate"
               Start-Sleep -Seconds 300
           }
+          
